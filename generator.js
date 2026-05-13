@@ -125,6 +125,30 @@ async function generateAllFiles(projectName, plotCount, houseTypeCount, building
     document.getElementById('filesList').style.display = 'block';
 }
 
+function parseAddressPrefix(projectName) {
+    // 尝试从项目名称中提取地址信息
+    // 支持格式：大沥黄岐项目、桂城回迁、南庄紫洞项目 等
+    // 去掉末尾的"项目"、"回迁"、"安置"等词
+    const cleaned = projectName.replace(/(项目|回迁|安置|改造|拆迁|工程).*$/, '').trim();
+
+    // 常见镇街关键词映射
+    const townKeywords = ['大沥', '里水', '九江', '西樵', '丹灶', '狮山', '官窑', '罗村', '桂城', '南庄', '平洲', '叠滘', '黄岐', '盐步'];
+    for (const town of townKeywords) {
+        if (cleaned.includes(town)) {
+            // 找到镇街，提取镇街前后的地名
+            const idx = cleaned.indexOf(town);
+            const district = cleaned.substring(0, idx) || '南海区';
+            const village = cleaned.substring(idx + town.length);
+            // 判断是镇还是街道
+            const isTown = ['大沥', '里水', '九江', '西樵', '丹灶', '狮山', '官窑', '罗村', '南庄'].includes(town);
+            const suffix = isTown ? '镇' : '街道';
+            return `佛山市南海区${town}${suffix}${village}`;
+        }
+    }
+    // 没有识别到镇街，直接用项目名作为地址前缀
+    return `佛山市${cleaned}`;
+}
+
 function initializeBaseData(projectName, plotCount, houseTypeCount, buildingCount, startNum = 1) {
     const names = ['林永强', '罗瑞芳', '林雨桐', '郭晓彤', '陈建华', '王丽娟', '张明', '李芳', '赵强', '孙静'];
     const houseTypes = ['两房一厅', '三房一厅', '三房两厅', '四房两厅', '五房两厅', '复式'];
@@ -132,6 +156,7 @@ function initializeBaseData(projectName, plotCount, houseTypeCount, buildingCoun
     const phases = ['一期', '二期', '三期'];
 
     globalData.projectName = projectName;
+    globalData.addressPrefix = parseAddressPrefix(projectName);
     globalData.houses = [];
     globalData.houseTypes = [];
     globalData.buildings = [];
@@ -183,7 +208,7 @@ function initializeBaseData(projectName, plotCount, houseTypeCount, buildingCoun
             area: area,
             price: price,
             total: total,
-            address: `佛山市南海区桂城街道约西嘉东约${Math.floor(Math.random() * 100) + 1}号`,
+            address: `${globalData.addressPrefix}${Math.floor(Math.random() * 100) + 1}号`,
             signDate: randomDate(2026, 1, 4),
             deliveryDate: randomDate(2025, 1, 2026, 12),
             phase: phase,
@@ -380,7 +405,7 @@ function generateHouseArchive() {
 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(globalData.houses.map((h, i) => ({
         '房屋编号': h.houseCode, '评估报告编号': `PGZD${String(i+1).padStart(3,'0')}`,
-        '评估报告名称': '约西嘉东ZD030号房屋评估报告'
+        '评估报告名称': `${globalData.addressPrefix}${h.houseCode}号房屋评估报告`
     }))), '评估报告');
 
     const apprDetail = [];
@@ -459,7 +484,7 @@ function generateHouseArchive() {
         const base = Math.floor(h.total * 0.9);
         [0.9, 0.07, 0.02, 0.02, 0.004, 0.003, 0.01, 0.013].forEach((rate, idx) => {
             payDetail.push({
-                '房屋编号': h.houseCode, '支付批次': idx<6?'第1期':'第2期',
+                '房屋编号': h.houseCode, '支付批次': idx<6?'第1批':'第2批',
                 '费项名称': feeNames[idx], '已支付金额': Math.floor(base*rate)
             });
         });
@@ -470,7 +495,7 @@ function generateHouseArchive() {
 
 function generateHouseTypes() {
     const ws = XLSX.utils.json_to_sheet(globalData.houseTypes.map(t => ({
-        '户型名称': t.name, '户型面积': t.area, '备注': '桂城回迁户型'
+        '户型名称': t.name, '户型面积': t.area, '备注': `${globalData.projectName}户型`
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '回迁户型导入模板');
@@ -479,11 +504,11 @@ function generateHouseTypes() {
 
 function generateHouseSources() {
     const ws = XLSX.utils.json_to_sheet(globalData.buildings.map(r => ({
-        '楼栋号': r.building, '地址': `佛山市南海区桂城街道${r.building}`,
+        '楼栋号': r.building, '地址': `${globalData.addressPrefix}${r.building}`,
         '层号': r.floor, '户号': r.roomNo, '户型': r.houseType, '房屋类型': '住宅', '建筑面积': r.area
     })));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '桂城房源');
+    XLSX.utils.book_append_sheet(wb, ws, `${globalData.projectName}房源`);
     return wb;
 }
 
@@ -579,9 +604,9 @@ function generateCollectionTable(count, startNum) {
 
         data.push([
             houseCode, community, community,
-            `佛山市测试F项目地址${String(num).padStart(2, '0')}`, '住宅',
+            `${globalData.addressPrefix}${String(num).padStart(2, '0')}号`, '住宅',
             name, `134501${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`,
-            `佛山市平南街道${String(num).padStart(2, '0')}号`,
+            `${globalData.addressPrefix}${String(num).padStart(2, '0')}号`,
             `45221655${String(Math.floor(Math.random() * 1000000000)).padStart(9, '0')}`,
             `粤第${String(num).padStart(4, '0')}号`, name,
             `45221655${String(Math.floor(Math.random() * 1000000000)).padStart(9, '0')}`,
